@@ -183,6 +183,11 @@
         requirements: "{{ hostvars['bot_data']['dest_folder'] }}/requirements.txt"  
       become: yes
 
+     - name: Clone GitHub Repository
+      git:
+        repo: https://github.com/Beefar22/PT-START-big-bob-bot_.git
+        dest: "{{ hostvars['bot_data']['dest_folder'] }}"
+      become: yes
     - name: Transfer .env file
       copy:
         src: "{{ hostvars['bot_data']['env_folder'] }}/.env"
