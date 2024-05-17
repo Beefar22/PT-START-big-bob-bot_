@@ -1,0 +1,7 @@
+flask
+paramiko
+python-telegram-bot==13.7
+python-dotenv
+psycopg2-binary
+psycopg2
+urllib3==1.26.15
