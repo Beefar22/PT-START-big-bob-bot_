@@ -48,7 +48,7 @@ def find_email(update: Update, context):
             cursor.execute("SELECT * FROM emails WHERE email = %s", (email,))
             result = cursor.fetchone()
             if result:
-                update.message.reply_text(f'Email {email} уже есть в базе данных.')
+                update.message.reply_text(f'emails {email} уже есть в базе данных.')
                 email_list.remove(email)
     except Exception as e:
         update.message.reply_text(f"Ошибка при работе с базой данных: {e}")
@@ -106,17 +106,30 @@ def find_phone_number(update: Update, context):
     context.user_data['user_input'] = user_input
     phone_regex = re.compile(r'(?:8|\+7)[\s-]?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}')
     phone_list = phone_regex.findall(user_input)
-
     if not phone_list:
         update.message.reply_text('Телефонные номера не найдены')
         return ConversationHandler.END
-
-    valid_phone_numbers = []
-    for match in phone_list:
-        valid_phone_numbers.append(''.join(match))
-
-    phone_numbers = '\n'.join(valid_phone_numbers)
-    update.message.reply_text(phone_numbers)
+    try:
+        conn = psycopg2.connect(dbname=DB_DATABASE, 
+                                user=DB_USER, 
+                                password=DB_PASSWORD, 
+                                host=DB_HOST, 
+                                port=DB_PORT)
+        cursor = conn.cursor()
+        for phone in phone_list:
+            cursor.execute("SELECT * FROM phone WHERE phone_number = %s", (phone,))
+            result = cursor.fetchone()
+            if result:
+                update.message.reply_text(f'Номер телефона {phone} уже есть в базе данных.')
+                phone_list.remove(phone)
+    except Exception as e:
+        update.message.reply_text(f"Ошибка при работе с базой данных: {e}")
+    finally:
+        if 'conn' in locals():
+            conn.close()
+            cursor.close()
+    phone = '\n'.join(phone_list)
+    update.message.reply_text(phone)
 
     # Предложение занести данные в базу данных
     update.message.reply_text('Хотите занести найденные телефонные номера в базу данных? (Да/Нет)')
@@ -126,31 +139,29 @@ def find_phone_number(update: Update, context):
 # Добавление телефонных номеров в базу данных.
 def add_phone_numbers_to_db(update: Update, context):
     user_response = update.message.text.lower()
-    if user_response == 'да':
-        try:
-            conn = psycopg2.connect(dbname=DB_DATABASE, user=DB_USER, password=DB_PASSWORD, host=DB_HOST, port=DB_PORT)
-            cursor = conn.cursor()
-            phone_list = [match for match in
-                          re.findall(r'(?:8|\+7)[\s-]?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}',
-                                     context.user_data['user_input'])]
-
-            for phone in phone_list:
-                cursor.execute("INSERT INTO phone (phone_number) VALUES (%s) ON CONFLICT DO NOTHING",
-                               (''.join(phone),))
+    try:
+        conn = psycopg2.connect(dbname=DB_DATABASE, user=DB_USER, password=DB_PASSWORD, host=DB_HOST, port=DB_PORT)
+        cursor = conn.cursor()
+        phone_list = [match for match in re.findall(r'(?:8|\+7)[\s-]?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}', context.user_data['user_input'])]
+        
+        for phone in phone_list:
+            cursor.execute("INSERT INTO phone (phone_number) VALUES (%s) ON CONFLICT DO NOTHING", (phone,))
+            
+        if user_response == 'да':
             conn.commit()
             update.message.reply_text('Телефонные номера успешно добавлены в базу данных.')
-        except Exception as e:
-            update.message.reply_text(f"Ошибка при добавлении в базу данных: {e}")
-        finally:
-            cursor.close()
+        elif user_response == 'нет':
+            update.message.reply_text('Хорошо, данные не будут добавлены в базу данных.')
+        else:
+            update.message.reply_text('Пожалуйста, ответьте "Да" или "Нет".')
+    except Exception as e:
+        update.message.reply_text(f"Ошибка при добавлении в базу данных: {e}")
+    finally:
+        if 'conn' in locals():
             conn.close()
-    elif user_response == 'нет':
-        update.message.reply_text('Хорошо, данные не будут добавлены в базу данных.')
-    else:
-        update.message.reply_text('Пожалуйста, ответьте "Да" или "Нет".')
-    return ConversationHandler.END
-
-
+        cursor.close()
+        
+        return ConversationHandler.END
 def get_release(update, context):
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -303,7 +314,29 @@ def start(update: Update, context):
 
 
 def helpCommand(update: Update, context):
-    update.message.reply_text('Help!')
+    help_text = "Доступные команды:\n"
+    help_text += "/start - Начать диалог\n"
+    help_text += "/help - Получить справку о доступных командах\n"
+    help_text += "/findemailaddress - Найти email-адреса в тексте\n"
+    help_text += "/findPhoneNumbers - Найти телефонные номера в тексте\n"
+    help_text += "/verify_password - Проверить сложность пароля\n"
+    help_text += "/get_release - Получить информацию о релизе Linux системы\n"
+    help_text += "/get_uname - Получить информацию об архитектуре процессора, имени хоста системы и версии ядра\n"
+    help_text += "/get_uptime - Получить информацию о времени работы системы\n"
+    help_text += "/get_df - Получить информацию о состоянии файловой системы\n"
+    help_text += "/get_free - Получить информацию о состоянии оперативной памяти\n"
+    help_text += "/get_mpstat - Получить информацию о производительности системы\n"
+    help_text += "/get_w - Получить информацию о работающих пользователях\n"
+    help_text += "/get_auths - Получить последние 10 входов в систему\n"
+    help_text += "/get_critical - Получить последние 5 критических событий\n"
+    help_text += "/get_ps - Получить информацию о запущенных процессах\n"
+    help_text += "/get_ss - Получить информацию об используемых портах\n"
+    help_text += "/get_apt_list - Получить список установленных пакетов или информацию о конкретном пакете\n"
+    help_text += "/get_services - Получить информацию о запущенных сервисах\n"
+    help_text += "/get_repl_logs - Получить информацию о репликации PostgreSQL\n"
+    help_text += "/find_email - Вывести список email-адресов из базы данных\n"
+    help_text += "/find_phone_number - Вывести список телефонных номеров из базы данных\n"
+    update.message.reply_text(help_text)
 
 def findemailaddressCommand(update: Update, context):
     update.message.reply_text('Введите текст для поиска email адреса: ')
@@ -384,6 +417,13 @@ def main():
     dp = updater.dispatcher
 
     # Обработчик диалога
+    ConvHandlerPassword = ConversationHandler(
+        entry_points=[CommandHandler('verify_password', verify_passwordCommand)],
+        states={
+            'verify_password': [MessageHandler(Filters.text & ~Filters.command, verify_password)],
+        },
+        fallbacks=[]
+    )
     convHandlerFindPhoneNumbers = ConversationHandler(
         entry_points=[CommandHandler('findPhoneNumbers', findPhoneNumbersCommand)],
         states={
@@ -398,13 +438,7 @@ def main():
     },
     fallbacks = []
     )
-    ConvHandlerPassword = ConversationHandler(
-        entry_points=[CommandHandler('verify_password', verify_passwordCommand)],
-        states={
-            'verify_password': [MessageHandler(Filters.text & ~Filters.command, verify_password)],
-        },
-        fallbacks=[]
-    )
+    
     conv_handler_email = ConversationHandler(
         entry_points=[CommandHandler('find_email', find_email_command)],
         states={
@@ -427,9 +461,9 @@ def main():
     # Регистрируем обработчики команд
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CommandHandler("help", helpCommand))
+    dp.add_handler(ConvHandlerPassword)
     dp.add_handler(convHandlerFindPhoneNumbers)
     dp.add_handler(ConvHandlerFindEmailAddress)
-    dp.add_handler(ConvHandlerPassword)
     # Регистрируем обработчик текстовых сообщений
     dp.add_handler(MessageHandler(Filters.text & ~Filters.command, echo))
     dp.add_handler(CommandHandler('get_release', get_release))
@@ -455,4 +489,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
