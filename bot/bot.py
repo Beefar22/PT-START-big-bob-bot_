@@ -13,7 +13,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-TOKEN ="6737668849:AAEs44kFxbtu445aawF3UbfgpYr6ZEnZ9jo"
+TOKEN ="token_cifr"
 RM_HOST="192.168.217.154"
 RM_PORT="22"
 RM_USER="kali"
